@@ -1850,7 +1850,7 @@ h1,h2,h3,h4,h5{font-family:'Outfit',sans-serif}
 /* ================================================================
    CONFIGURACIÓN
 ================================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxa7-bNFD-9oomY16zfbIxCRijFCe8Upw1JmBJ1G5mXepVv2LJhrBxCV0Ckz3XknPgwRA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxBqB9rYQnmqZF6xHz7lMkJKElcqXrbg8kcMYSmnPhGuv7FCrP16c-EdnsN45XqtB4-AQ/exec";
 const LOGIN_API_URL = "https://script.google.com/macros/s/AKfycbxjzu92aPsuVqdsALPCrrz6kG1ARLPidZmk-HkKoTgWNp6spgsCwc1K4GCUK9UALdaatw/exec";
 
 /* ================================================================
@@ -5041,8 +5041,9 @@ if (sec.id === "KSTM" || sec.tipo === "simple") {
         '</div>' +
         '<div style="padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--gray-200);">' +
           '<input type="date" id="oil-filter-date" style="padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;font-family:inherit;" oninput="oilRenderSavedList()">' +
-          '<input type="text" id="oil-filter-text" placeholder="🔍 Buscar por nombre..." style="flex:1;min-width:100px;padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;font-family:inherit;" oninput="oilRenderSavedList()">' +
+          '<input type="text" id="oil-filter-text" placeholder="🔍 Buscar..." style="flex:1;min-width:80px;padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;font-family:inherit;" oninput="oilRenderSavedList()">' +
         '</div>' +
+        '<div id="oil-year-stats" style="padding:6px 14px;font-size:11px;color:var(--text-lt);border-bottom:1px solid var(--gray-100);display:flex;gap:10px;flex-wrap:wrap;"></div>' +
         '<div id="oil-saved-list" style="max-height:200px;overflow-y:auto;">' +
           '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">Aún no hay derrames guardados.</div>' +
         '</div>' +
@@ -7674,7 +7675,8 @@ function oilParseKML(kmlText) {
   _oilData = { frames: _oilFrames };
 
   var totalParticles = _oilFrames.reduce(function(a, f) { return a + f.particles.length; }, 0);
-  document.getElementById("oil-filename").textContent = "🛢️ " + _oilFileName;
+  var firstTime = _oilFrames[0].time || "";
+  document.getElementById("oil-filename").textContent = "🛢️ Mancha Oleosa - " + firstTime.slice(0, 10);
   document.getElementById("oil-particle-count").textContent = totalParticles + " partículas";
   document.getElementById("oil-time-range").textContent = _oilFrames.length + " pasos · " +
     _oilFrames[0].time.slice(0, 16) + " → " + _oilFrames[_oilFrames.length-1].time.slice(0, 16);
@@ -7802,9 +7804,10 @@ function oilSetSaved(list) {
 function oilSaveState(driveUrl) {
   if (!_oilFrames || !_oilFrames.length) return;
   var spills = oilGetSaved();
+  var displayDate = (_oilFrames[0].time || "").slice(0, 10);
   var entry = {
     id: "oil_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
-    name: _oilFileName,
+    name: "Mancha Oleosa - " + displayDate,
     driveUrl: driveUrl || null,
     frames: _oilFrames,
     frameCount: _oilFrames.length,
@@ -7862,6 +7865,8 @@ function oilRenderSavedList() {
   var spills = oilGetSaved();
   if (!spills || !spills.length) {
     el.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">A\u00fan no hay derrames guardados.</div>';
+    var yrEl = document.getElementById("oil-year-stats");
+    if (yrEl) yrEl.innerHTML = "";
     return;
   }
   var filterDate = document.getElementById("oil-filter-date");
@@ -7871,8 +7876,28 @@ function oilRenderSavedList() {
   var filtered = spills;
   if (fd) filtered = filtered.filter(function(s) { return (s.timeStart || "").slice(0, 10) === fd; });
   if (ft) filtered = filtered.filter(function(s) { return (s.name || "").toLowerCase().includes(ft); });
+  // Year stats
+  var yearCounts = {};
+  spills.forEach(function(s) {
+    var y = (s.timeStart || "").slice(0, 4);
+    if (y) yearCounts[y] = (yearCounts[y] || 0) + 1;
+  });
+  var yrKeys = Object.keys(yearCounts).sort().reverse();
+  var yrEl = document.getElementById("oil-year-stats");
+  if (yrEl) {
+    yrEl.innerHTML = yrKeys.map(function(y) {
+      var active = (window._oilYearFilter === y);
+      return '<span style="cursor:pointer;font-weight:' + (active ? '800' : '600') + ';color:' + (active ? 'var(--blue)' : 'var(--text-lt)') + ';border-bottom:' + (active ? '2px solid var(--blue)' : '2px solid transparent') + ';padding-bottom:2px;" onclick="window._oilYearFilter=window._oilYearFilter===\'' + y + '\'?null:\'' + y + '\';oilRenderSavedList()" title="Filtrar por a\u00f1o">' + y + ': ' + yearCounts[y] + '</span>';
+    }).join(' \u00B7 ');
+    if (window._oilYearFilter) {
+      yrEl.innerHTML += ' <span style="font-size:10px;color:var(--red);cursor:pointer;font-weight:700;" onclick="window._oilYearFilter=null;oilRenderSavedList()">[X]</span>';
+    }
+  }
+  if (window._oilYearFilter) {
+    filtered = filtered.filter(function(s) { return (s.timeStart || "").slice(0, 4) === window._oilYearFilter; });
+  }
   if (!filtered.length) {
-    el.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">Sin derrames guardados' + (fd||ft?' para los filtros actuales.':'') + '</div>';
+    el.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">Sin derrames guardados' + (fd||ft||window._oilYearFilter?' para los filtros actuales.':'') + '</div>';
     return;
   }
   var h = "";
@@ -7912,19 +7937,18 @@ function oilUploadAndSave() {
   reader.onload = function(e) {
     var base64 = e.target.result.split(",")[1];
     var mimeType = file.type || "application/vnd.google-earth.kmz";
-    var params = new URLSearchParams();
-    params.set("accion", "subirImagenSAR");
-    params.set("base64Data", base64);
-    params.set("mimeType", mimeType);
-    params.set("nombreCaso", file.name);
-    params.set("filaSheet", "1");
-    params.set("hojaId", "HIDROCARBURO");
-    params.set("carpetaId", "1dXzZWUAS7YnLDsWhT-BSwMtzFjefmY1r");
-    fetch(API_URL, {
+    var formBody = new URLSearchParams();
+    formBody.set("accion", "subirImagenSAR");
+    formBody.set("base64Data", base64);
+    formBody.set("mimeType", mimeType);
+    formBody.set("nombreCaso", file.name);
+    formBody.set("filaSheet", "1");
+    formBody.set("hojaId", "HIDROCARBURO");
+    fetch(API_URL + "?carpetaId=1dXzZWUAS7YnLDsWhT-BSwMtzFjefmY1r", {
       method: "POST",
       redirect: "follow",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString()
+      body: formBody.toString()
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {

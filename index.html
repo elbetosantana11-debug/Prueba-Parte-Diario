@@ -1850,7 +1850,7 @@ h1,h2,h3,h4,h5{font-family:'Outfit',sans-serif}
 /* ================================================================
    CONFIGURACIÓN
 ================================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxa7-bNFD-9oomY16zfbIxCRijFCe8Upw1JmBJ1G5mXepVv2LJhrBxCV0Ckz3XknPgwRA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxLM-N2A-Yq0typfOJG6_EpNjfUl2vVOxUnr6H2_OsqGJLEA093lsCeaMFZ120LycB8lQ/exec";
 const LOGIN_API_URL = "https://script.google.com/macros/s/AKfycbxjzu92aPsuVqdsALPCrrz6kG1ARLPidZmk-HkKoTgWNp6spgsCwc1K4GCUK9UALdaatw/exec";
 
 /* ================================================================
@@ -7808,6 +7808,7 @@ function oilSaveState(driveUrl) {
     id: "oil_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
     name: "Mancha Oleosa - " + displayDate,
     driveUrl: driveUrl || null,
+    fileId: driveUrl ? (driveUrl.match(/id=([^&]+)/)||[])[1] || null : null,
     frames: _oilFrames,
     frameCount: _oilFrames.length,
     particleCount: _oilFrames.reduce(function(a,f) { return a + f.particles.length; }, 0),
@@ -7820,6 +7821,50 @@ function oilSaveState(driveUrl) {
   var existing = spills.findIndex(function(s) { return s.id === entry.id; });
   if (existing >= 0) spills[existing] = entry;
   else spills.push(entry);
+  oilSetSaved(spills);
+  oilRenderSavedList();
+  guardarDerrameCloud(entry);
+}
+
+// ── Cloud sync ──
+function guardarDerrameCloud(entry) {
+  var p = new URLSearchParams();
+  p.set("accion","guardarDerrame");
+  p.set("id",entry.id);
+  p.set("name",entry.name);
+  p.set("driveUrl",entry.driveUrl||"");
+  p.set("fileId",entry.fileId||"");
+  p.set("frameCount",entry.frameCount||0);
+  p.set("particleCount",entry.particleCount||0);
+  p.set("timeStart",entry.timeStart||"");
+  p.set("timeEnd",entry.timeEnd||"");
+  p.set("firstLat",entry.firstLat!=null?entry.firstLat:"");
+  p.set("firstLon",entry.firstLon!=null?entry.firstLon:"");
+  p.set("savedAt",entry.savedAt||"");
+  fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:p.toString()}).catch(function(){});
+}
+function obtenerDerramesCloud(cb) {
+  var p = new URLSearchParams(); p.set("accion","obtenerDerrames");
+  fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:p.toString()})
+  .then(function(r){return r.json();})
+  .then(function(res){cb(res&&res.ok&&res.derrames?res.derrames:[]);})
+  .catch(function(){cb([]);});
+}
+function oilMergeFromCloud(cloudDerrames) {
+  var spills = oilGetSaved();
+  cloudDerrames.forEach(function(cd) {
+    var local = spills.find(function(s){return s.id===cd.id;});
+    if (local) {
+      local.driveUrl=cd.driveUrl||local.driveUrl;
+      local.fileId=cd.fileId||local.fileId;
+      local.frameCount=cd.frameCount||local.frameCount;
+      local.particleCount=cd.particleCount||local.particleCount;
+      local.firstLat=cd.firstLat||local.firstLat;
+      local.firstLon=cd.firstLon||local.firstLon;
+    } else {
+      spills.push({id:cd.id,name:cd.name,driveUrl:cd.driveUrl||null,fileId:cd.fileId||null,frames:null,frameCount:cd.frameCount||0,particleCount:cd.particleCount||0,timeStart:cd.timeStart||"",timeEnd:cd.timeEnd||"",firstLat:cd.firstLat||null,firstLon:cd.firstLon||null,savedAt:cd.savedAt||""});
+    }
+  });
   oilSetSaved(spills);
   oilRenderSavedList();
 }
@@ -7903,10 +7948,15 @@ function oilRenderSavedList() {
   var h = "";
   filtered.forEach(function(s) {
     var dateStr = (s.timeStart || "").slice(0, 10).replace(/-/g, "/");
-    var timeStr = (s.timeStart || "").slice(11, 16) + " \u2192 " + (s.timeEnd || "").slice(11, 16);
+    var timeStr = (s.timeStart || "").slice(11, 16);
+    if (s.timeEnd) timeStr += " \u2192 " + s.timeEnd.slice(11, 16);
     var loc = "";
     if (s.firstLat && s.firstLon) loc = s.firstLat.toFixed(2) + ", " + s.firstLon.toFixed(2);
     var driveIcon = s.driveUrl ? '\u2601\uFE0F' : '\uD83D\uDCBE';
+    var isCloud = !s.frames && s.driveUrl;
+    var cargarBtn = isCloud
+      ? '<a href="https://drive.google.com/uc?export=download&id=' + s.fileId + '" target="_blank" style="padding:3px 10px;border-radius:6px;border:none;background:var(--green);color:#fff;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;">\u2B07 Descargar KMZ</a>'
+      : '<button onclick="oilLoadSavedState(\'' + s.id + '\')" style="padding:3px 10px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">\u25B6 Cargar</button>';
     h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--gray-100);">' +
       '<div style="flex:1;min-width:0;">' +
         '<div style="font-size:12px;font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\uD83D\uDEE2️ ' + esc(s.name) + '</div>' +
@@ -7914,12 +7964,12 @@ function oilRenderSavedList() {
           '<span>\uD83D\uDCC5 ' + dateStr + '</span> \u00B7 ' +
           '<span>\uD83D\uDD50 ' + timeStr + '</span> \u00B7 ' +
           '<span>\uD83D\uDCCD ' + loc + '</span> \u00B7 ' +
-          '<span>' + s.frameCount + ' pasos</span> \u00B7 ' +
+          '<span>' + (s.frameCount||0) + ' pasos</span> \u00B7 ' +
           '<span>' + driveIcon + '</span>' +
         '</div>' +
       '</div>' +
-      '<button onclick="oilLoadSavedState(\'' + s.id + '\')" style="padding:3px 10px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">\u25B6 Cargar</button>' +
-      (s.driveUrl ? '<button onclick="window.open(\'' + s.driveUrl + '\',\'_blank\')" style="padding:3px 8px;border-radius:6px;border:1px solid var(--gray-400);background:transparent;color:var(--text-lt);font-size:10px;font-weight:700;cursor:pointer;">\u2601</button>' : '') +
+      cargarBtn +
+      (isCloud?'':(s.driveUrl ? '<button onclick="window.open(\'' + s.driveUrl + '\',\'_blank\')" style="padding:3px 8px;border-radius:6px;border:1px solid var(--gray-400);background:transparent;color:var(--text-lt);font-size:10px;font-weight:700;cursor:pointer;">\u2601</button>' : '')) +
       '<button onclick="if(confirm(\'\u00BFEliminar este derrame?\'))oilDeleteSaved(\'' + s.id + '\')" style="padding:3px 8px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);font-size:10px;font-weight:700;cursor:pointer;">\u2715</button>' +
     '</div>';
   });
@@ -8002,12 +8052,17 @@ function oilUploadAndSave() {
   });
 })();
 
-// ── Auto-render saved spills list when HIDROCARBUROS section loads ──
+// ── Auto-render saved spills list + cloud sync ──
 (function() {
   var check = function() {
     var el = document.getElementById("oil-saved-list");
     if (el && typeof oilRenderSavedList === "function") {
       oilRenderSavedList();
+      if (typeof obtenerDerramesCloud === "function") {
+        obtenerDerramesCloud(function(cloudDerrames) {
+          if (cloudDerrames && cloudDerrames.length) oilMergeFromCloud(cloudDerrames);
+        });
+      }
       return true;
     }
     return false;

@@ -7859,20 +7859,17 @@ function obtenerDerramesCloud(cb) {
 }
 function oilMergeFromCloud(cloudDerrames) {
   var spills = oilGetSaved();
+  var nuevos = [];
   cloudDerrames.forEach(function(cd) {
     var local = spills.find(function(s){return s.id===cd.id;});
-    if (local) {
-      local.driveUrl=cd.driveUrl||local.driveUrl;
-      local.fileId=cd.fileId||local.fileId;
-      local.frameCount=cd.frameCount||local.frameCount;
-      local.particleCount=cd.particleCount||local.particleCount;
-      local.firstLat=cd.firstLat||local.firstLat;
-      local.firstLon=cd.firstLon||local.firstLon;
-    } else {
-      spills.push({id:cd.id,name:cd.name,driveUrl:cd.driveUrl||null,fileId:cd.fileId||null,frames:null,frameCount:cd.frameCount||0,particleCount:cd.particleCount||0,timeStart:cd.timeStart||"",timeEnd:cd.timeEnd||"",firstLat:cd.firstLat||null,firstLon:cd.firstLon||null,savedAt:cd.savedAt||""});
+    nuevos.push({id:cd.id,name:cd.name,driveUrl:cd.driveUrl||null,fileId:cd.fileId||null,frames:local?local.frames:null,frameCount:cd.frameCount||0,particleCount:cd.particleCount||0,timeStart:cd.timeStart||"",timeEnd:cd.timeEnd||"",firstLat:cd.firstLat||null,firstLon:cd.firstLon||null,savedAt:cd.savedAt||""});
+  });
+  spills.forEach(function(s) {
+    if (s.frames && !cloudDerrames.find(function(cd){return cd.id===s.id;})) {
+      nuevos.push(s);
     }
   });
-  oilSetSaved(spills);
+  oilSetSaved(nuevos);
   oilRenderSavedList();
 }
 function oilDescargarDeDrive(fileId, spillId) {
@@ -7965,12 +7962,16 @@ function oilRenderSavedList() {
   var yrKeys = Object.keys(yearCounts).sort().reverse();
   var yrEl = document.getElementById("oil-year-stats");
   if (yrEl) {
+    yrEl.style.display = "flex";
+    yrEl.style.flexWrap = "wrap";
+    yrEl.style.gap = "8px";
+    yrEl.style.padding = "8px 14px";
     yrEl.innerHTML = yrKeys.map(function(y) {
       var active = (window._oilYearFilter === y);
-      return '<span style="cursor:pointer;font-weight:' + (active ? '800' : '600') + ';color:' + (active ? 'var(--blue)' : 'var(--text-lt)') + ';border-bottom:' + (active ? '2px solid var(--blue)' : '2px solid transparent') + ';padding-bottom:2px;" onclick="window._oilYearFilter=window._oilYearFilter===\'' + y + '\'?null:\'' + y + '\';var df=document.getElementById(\'oil-filter-date\');if(df)df.value=\'\';var tf=document.getElementById(\'oil-filter-text\');if(tf)tf.value=\'\';oilRenderSavedList()" title="Filtrar por a\u00f1o">' + y + ': ' + yearCounts[y] + '</span>';
-    }).join(' \u00B7 ');
+      return '<span style="display:inline-block;padding:6px 16px;border-radius:20px;cursor:pointer;font-weight:700;font-size:13px;background:' + (active ? 'var(--blue)' : 'var(--gray-100)') + ';color:' + (active ? '#fff' : 'var(--text-lt)') + ';border:2px solid ' + (active ? 'var(--blue)' : 'transparent') + ';transition:all .15s;user-select:none;" onclick="window._oilYearFilter=window._oilYearFilter===\'' + y + '\'?null:\'' + y + '\';var df=document.getElementById(\'oil-filter-date\');if(df)df.value=\'\';var tf=document.getElementById(\'oil-filter-text\');if(tf)tf.value=\'\';oilRenderSavedList()" title="Filtrar por a\u00f1o">' + y + ' <span style="font-weight:400;opacity:.8">(' + yearCounts[y] + ')</span></span>';
+    }).join('');
     if (window._oilYearFilter) {
-      yrEl.innerHTML += ' <span style="font-size:10px;color:var(--red);cursor:pointer;font-weight:700;" onclick="window._oilYearFilter=null;oilRenderSavedList()">[X]</span>';
+      yrEl.innerHTML += ' <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;cursor:pointer;font-weight:700;font-size:14px;background:var(--red);color:#fff;border:none;user-select:none;" onclick="window._oilYearFilter=null;oilRenderSavedList()" title="Limpiar filtro">\u2715</span>';
     }
   }
   var hasAnyFilter = fd || ft || window._oilYearFilter;

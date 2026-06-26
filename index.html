@@ -1850,7 +1850,7 @@ h1,h2,h3,h4,h5{font-family:'Outfit',sans-serif}
 /* ================================================================
    CONFIGURACIÓN
 ================================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbyQlj7FdVigl2vShUHvs7gxUQAZXShtRU3JxyqrTFoYK6BzueXZQks13X-9WnOWBXLRKQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyYmTb1lEWBerkhK9oPQfRp5i4k-ErncCsGuFzoAFxct0d30LtCBH3jz16E_dI4Rg0vnA/exec";
 const LOGIN_API_URL = "https://script.google.com/macros/s/AKfycbxjzu92aPsuVqdsALPCrrz6kG1ARLPidZmk-HkKoTgWNp6spgsCwc1K4GCUK9UALdaatw/exec";
 
 /* ================================================================
@@ -7843,7 +7843,12 @@ function guardarDerrameCloud(entry) {
   p.set("firstLat",entry.firstLat!=null?entry.firstLat:"");
   p.set("firstLon",entry.firstLon!=null?entry.firstLon:"");
   p.set("savedAt",entry.savedAt||"");
-  fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:p.toString()}).catch(function(){});
+  fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:p.toString()})
+  .then(function(r){return r.json();})
+  .then(function(res){
+    if(!res||!res.ok) console.warn("guardarDerrameCloud error:",res&&res.error);
+  })
+  .catch(function(e){console.warn("guardarDerrameCloud fetch fail:",e);});
 }
 function obtenerDerramesCloud(cb) {
   var p = new URLSearchParams(); p.set("accion","obtenerDerrames");

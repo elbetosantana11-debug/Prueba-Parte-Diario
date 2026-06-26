@@ -1850,7 +1850,7 @@ h1,h2,h3,h4,h5{font-family:'Outfit',sans-serif}
 /* ================================================================
    CONFIGURACIÓN
 ================================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxLM-N2A-Yq0typfOJG6_EpNjfUl2vVOxUnr6H2_OsqGJLEA093lsCeaMFZ120LycB8lQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyQlj7FdVigl2vShUHvs7gxUQAZXShtRU3JxyqrTFoYK6BzueXZQks13X-9WnOWBXLRKQ/exec";
 const LOGIN_API_URL = "https://script.google.com/macros/s/AKfycbxjzu92aPsuVqdsALPCrrz6kG1ARLPidZmk-HkKoTgWNp6spgsCwc1K4GCUK9UALdaatw/exec";
 
 /* ================================================================
@@ -7804,8 +7804,10 @@ function oilSaveState(driveUrl) {
   if (!_oilFrames || !_oilFrames.length) return;
   var spills = oilGetSaved();
   var displayDate = (_oilFrames[0].time || "").slice(0, 10);
+  var pendingId = window._oilPendingSpillId;
+  window._oilPendingSpillId = null;
   var entry = {
-    id: "oil_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
+    id: pendingId || "oil_" + Date.now() + "_" + Math.random().toString(36).slice(2,6),
     name: "Mancha Oleosa - " + displayDate,
     driveUrl: driveUrl || null,
     fileId: driveUrl ? (driveUrl.match(/id=([^&]+)/)||[])[1] || null : null,
@@ -7867,6 +7869,35 @@ function oilMergeFromCloud(cloudDerrames) {
   });
   oilSetSaved(spills);
   oilRenderSavedList();
+}
+function oilDescargarDeDrive(fileId, spillId) {
+  if (!fileId) return;
+  var status = document.getElementById("oil-status");
+  if (status) status.textContent = "Descargando KMZ desde Drive...";
+  var params = new URLSearchParams();
+  params.set("accion", "descargarKMZ");
+  params.set("fileId", fileId);
+  fetch(API_URL, { method: "POST", redirect: "follow", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() })
+  .then(function(r){ return r.json(); })
+  .then(function(res) {
+    if (res && res.ok && res.base64) {
+      var byteChars = atob(res.base64);
+      var byteNums = new Array(byteChars.length);
+      for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+      var byteArray = new Uint8Array(byteNums);
+      var blob = new Blob([byteArray], { type: "application/vnd.google-earth.kmz" });
+      var nombre = (res.name || "derrame.kmz").replace(/[^a-zA-Z0-9._-]/g, "_");
+      var file = new File([blob], nombre, { type: "application/vnd.google-earth.kmz" });
+      if (spillId) window._oilPendingSpillId = spillId;
+      if (status) status.textContent = "Descargado. Procesando KMZ...";
+      oilLoadKMZ(file);
+    } else {
+      if (status) status.textContent = "Error al descargar KMZ: " + (res.error || "desconocido");
+    }
+  })
+  .catch(function(err) {
+    if (status) status.textContent = "Error de conexi\u00F3n al descargar KMZ.";
+  });
 }
 function oilLoadSavedState(id) {
   var spills = oilGetSaved();
@@ -7955,7 +7986,7 @@ function oilRenderSavedList() {
     var driveIcon = s.driveUrl ? '\u2601\uFE0F' : '\uD83D\uDCBE';
     var isCloud = !s.frames && s.driveUrl;
     var cargarBtn = isCloud
-      ? '<a href="https://drive.google.com/uc?export=download&id=' + s.fileId + '" target="_blank" style="padding:3px 10px;border-radius:6px;border:none;background:var(--green);color:#fff;font-size:10px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;">\u2B07 Descargar KMZ</a>'
+      ? '<button onclick="oilDescargarDeDrive(\'' + s.fileId + '\',\'' + s.id + '\')" style="padding:3px 10px;border-radius:6px;border:none;background:var(--green);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">\u25B6 Cargar</button>'
       : '<button onclick="oilLoadSavedState(\'' + s.id + '\')" style="padding:3px 10px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">\u25B6 Cargar</button>';
     h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--gray-100);">' +
       '<div style="flex:1;min-width:0;">' +

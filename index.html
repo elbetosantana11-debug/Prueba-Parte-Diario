@@ -7977,6 +7977,10 @@ function oilRenderSavedList() {
   if (window._oilYearFilter) {
     filtered = filtered.filter(function(s) { return (s.timeStart || "").slice(0, 4) === window._oilYearFilter; });
   }
+  if (!window._oilYearFilter) {
+    el.innerHTML = '<div style="padding:30px 16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">Hac\u00E9 clic en un a\u00F1o arriba para ver los derrames.</div>';
+    return;
+  }
   if (!filtered.length) {
     el.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-lt);font-style:italic;">Sin derrames guardados' + (hasAnyFilter?' para los filtros actuales.':'') + '</div>';
     return;
